@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 import shutil
 from datetime import datetime
-
+import psutil
 
 #Files and OS functions
 
@@ -18,9 +18,7 @@ def pathr(name: str):
     p = subprocess.check_output(['mdfind', '-name', name], text=True, stderr=subprocess.DEVNULL).strip()
     if (p != ""):
         for i in p.split('\n'):
-            if any(
-                    ignore in i
-                    for ignore in [
+            ignlist=[
                         '/System/',
                         '/Library/',
                         '/usr/',
@@ -29,9 +27,11 @@ def pathr(name: str):
                         '/.venv',
                         '/.git',
                         '/Mobile Documents/',
-                    ]
-            ):
-                continue
+                ]
+            if(not i in ignlist):
+                pass
+
+
             if (os.path.exists(i)):
                 return i
 
@@ -208,4 +208,22 @@ def compress(dirname: str):
         return "error: compress not working"
     else:
         return "error: compress not working"
+
+#Monitor the System and Hardware
+
+def syscpuramusage():
+    usage={
+        "cpu%":psutil.cpu_percent(interval=0.1),
+        "ram":round(psutil.virtual_memory().used/1024**3,2),
+        "ram%": psutil.virtual_memory().percent
+    }
+    return usage
+
+def diskusage():
+    list=[]
+    p=psutil.disk_partitions()
+    for i in range(0,len(p)):
+        list.append(round(psutil.disk_usage(psutil.disk_partitions()[i].mountpoint).used / 1024**3,2))
+        list.append(round(psutil.disk_usage(psutil.disk_partitions()[i].mountpoint).free / 1024**3,2))
+    return list
 
