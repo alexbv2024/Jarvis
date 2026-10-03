@@ -1,11 +1,42 @@
 import os
 import subprocess
 from pathlib import Path
+import shutil
+from datetime import datetime
 
 
 #Files and OS functions
+
+def pathr(name: str):
+    e=os.path.expanduser(name)
+    if(os.path.exists(e)):
+        return e
+    homedir=os.path.expanduser('~')
+    comdir=os.path.join(homedir,name)
+    if (os.path.exists(comdir)):
+        return comdir
+    p = subprocess.check_output(['mdfind', '-name', name], text=True, stderr=subprocess.DEVNULL).strip()
+    if (p != ""):
+        for i in p.split('\n'):
+            if any(
+                    ignore in i
+                    for ignore in [
+                        '/System/',
+                        '/Library/',
+                        '/usr/',
+                        '/.idea',
+                        '/Caches/',
+                        '/.venv',
+                        '/.git',
+                        '/Mobile Documents/',
+                    ]
+            ):
+                continue
+            if (os.path.exists(i)):
+                return i
+
 def listdir(dirname: str):
-    p = subprocess.check_output(['mdfind', '-name', dirname], text=True).strip()
+    p = pathr(dirname)
     if(p!=""):
         for i in p.split('\n'):
             if(os.path.isdir(i)):
@@ -15,7 +46,7 @@ def listdir(dirname: str):
         return "error: listdir not working"
 
 def readtxtfile(filename: str):
-    p = subprocess.check_output(['mdfind', '-name', filename], text=True).strip()
+    p = pathr(filename)
     if (p != ""):
         for i in p.split('\n'):
             if (os.path.isfile(i)):
@@ -25,7 +56,7 @@ def readtxtfile(filename: str):
         return "error: readtxtfile not working"
 
 def writefile(filename: str, content: str):
-    p = subprocess.check_output(['mdfind', '-name', filename], text=True).strip()
+    p = pathr(filename)
     if(p!=""):
         for i in p.split('\n'):
             if(os.path.isfile(i)):
@@ -39,7 +70,7 @@ def writefile(filename: str, content: str):
         return f"success: created new {filename} and wrote content"
 
 def appendfile(filename: str, content: str):
-    p = subprocess.check_output(['mdfind', '-name', filename], text=True).strip()
+    p = pathr(filename)
     if(p!=""):
         for i in p.split('\n'):
             if(os.path.isfile(i)):
@@ -53,7 +84,7 @@ def appendfile(filename: str, content: str):
         return f"success: created new {filename} and appended content"
 
 def deletefile(filename: str):
-    p = subprocess.check_output(['mdfind', '-name', filename], text=True).strip()
+    p = pathr(filename)
     if (p != ""):
         for i in p.split('\n'):
             if (os.path.isfile(i)):
@@ -64,7 +95,7 @@ def deletefile(filename: str):
         return "error: deletefile not working"
 
 def deletedir(dirname: str):
-    p = subprocess.check_output(['mdfind', '-name', dirname], text=True).strip()
+    p = pathr(dirname)
     if (p != ""):
         for i in p.split('\n'):
             if (os.path.isdir(i)):
@@ -73,3 +104,108 @@ def deletedir(dirname: str):
         return "error: deletedir not working"
     else:
         return "error: deletedir not working"
+
+def renames(name: str,newn: str):
+    p = pathr(name)
+    if (p != ""):
+        for i in p.split('\n'):
+            if (os.path.isdir(i) or os.path.isfile(i)):
+                np=Path(i).parent / newn
+                os.rename(i,np)
+                return f"success: renamed file {name} into {newn}"
+        return "error: renames not working"
+    else:
+        return "error: renames not working"
+
+def moves(name: str,newp: str):
+    p = pathr(name)
+    np = pathr(newp)
+    if (p != ""):
+        for i in p.split('\n'):
+            if (os.path.isdir(i) or os.path.isfile(i)):
+                if (np != ""):
+                    for j in np.split('\n'):
+                        if (os.path.isdir(j)):
+                            shutil.move(i, j)
+                            return f"success: moved file {name} into {newp}"
+                    return "error: moves not working"
+                else:
+                    return "error: moves not working"
+        return "error: moves not working"
+    else:
+        return "error: moves not working"
+
+def copydirorf(name: str, newp: str):
+    p = pathr(name)
+    np = pathr(newp)
+    if (p != ""):
+        for i in p.split('\n'):
+            if (os.path.exists(i)):
+                if (np != ""):
+                    for j in np.split('\n'):
+                        if(os.path.isdir(j)):
+                            if (os.path.isdir(i)):
+                                dp=os.path.join(j, os.path.basename(i))
+                                shutil.copytree(i, dp, dirs_exist_ok=True)
+                                return f"success: copied dir {name} into {newp}"
+                            elif (os.path.isfile(i)):
+                                shutil.copy(i, j)
+                                return f"success: copied file {name} into {newp}"
+                    return "error: copydirorf not working"
+                else:
+                    return "error: copydirorf not working"
+        return "error: copydirorf not working"
+    else:
+        return "error: copydirorf not working"
+
+def metastats(name: str):
+    p = pathr(name)
+    if (p != ""):
+        for i in p.split('\n'):
+            if (os.path.exists(i)):
+                stats=os.stat(i)
+                statde=[]
+
+                for attr in dir(stats):
+                    if attr.startswith("st_"):
+                        v=getattr(stats, attr)
+                        if(attr in ('st_mtime','st_atime','st_ctime','st_birthtime')):
+                            dt = datetime.fromtimestamp(v)
+                            formatted = dt.strftime(
+                                '%Y-%m-%d %H:%M:%S (An: %Y)'
+                            )
+                            statde.append(
+                                f'{attr}: {formatted} [{v}]'
+                            )
+                        elif(attr=='st_size'):
+                            kb = round(v/1024,2)
+                            mb = round(v / (1024*1024), 2)
+                            statde.append(
+                                f'{attr}: {v} bytes ({kb} KB / {mb} MB)'
+                            )
+                        else:
+                            statde.append(
+                                f'{attr}: {v}'
+                            )
+                output = f"success: full stat metadata for '{i}':\n" + '\n'.join(
+                    statde
+                )
+                return output
+        return "error: metastats not working"
+    else:
+        return "error: metastats not working"
+
+def compress(dirname: str):
+    p = pathr(dirname)
+    if (p != ""):
+        for i in p.split('\n'):
+            if (os.path.isdir(i)):
+                pdir=os.path.dirname(i)
+                bdir = os.path.basename(i)
+                archive=os.path.join(pdir,bdir)
+                shutil.make_archive(archive,'zip',pdir,bdir)
+                return f"succes: compressed {dirname}"
+        return "error: compress not working"
+    else:
+        return "error: compress not working"
+
