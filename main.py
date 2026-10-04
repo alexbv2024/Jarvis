@@ -5,6 +5,8 @@ import shutil
 from datetime import datetime
 import psutil
 
+
+
 #Files and OS functions
 
 def pathr(name: str):
@@ -227,3 +229,24 @@ def diskusage():
         list.append(round(psutil.disk_usage(psutil.disk_partitions()[i].mountpoint).free / 1024**3,2))
     return list
 
+def lsprosses():
+    p=psutil.process_iter(['pid','name','cpu_percent','memory_percent'])
+    l=[]
+    for i in p:
+
+        try:
+            if(i.pid!=0):
+                l.append(i.info)
+
+        except Exception:
+            pass
+    return l
+
+def battery():
+    batt=psutil.sensors_battery()
+    if(batt!=None):
+        return [batt.percent,batt.power_plugged]
+    else:
+        return "error: battery not working"
+
+#def netinfo():
