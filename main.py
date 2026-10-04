@@ -1,10 +1,14 @@
 import os
 import subprocess
+import time
 from pathlib import Path
 import shutil
 from datetime import datetime
 import psutil
+import socket
+import platform
 
+import send2trash
 
 
 #Files and OS functions
@@ -90,8 +94,8 @@ def deletefile(filename: str):
     if (p != ""):
         for i in p.split('\n'):
             if (os.path.isfile(i)):
-                os.remove(i)
-                return f"success: deleted file {filename}"
+                delthing(i)
+                return f"success: deleted file {filename}(sended it to the trash)"
         return "error: deletefile not working"
     else:
         return "error: deletefile not working"
@@ -249,4 +253,41 @@ def battery():
     else:
         return "error: battery not working"
 
-#def netinfo():
+def netinfo():
+    l1=psutil.net_if_addrs()
+    l2 = psutil.net_if_stats()
+    r=[]
+    mac=0
+    for n,i in l1.items():
+        ip=None
+
+        for j in i:
+            if(j.family==socket.AF_INET):
+                r.append(n)
+                r.append(j.address)
+                ip=j.address
+            elif (j.family == psutil.AF_LINK and mac==0):
+                r.append(j.address)
+                mac+=1
+        if(ip):
+            if(n in l2):
+                r.append(l2[n].isup)
+                if(l2[n].speed!=0):
+                    r.append(l2[n].speed)
+                else:
+                    r.append("N/A")
+
+    return r
+
+def whatos():
+    return platform.platform()
+
+def delthing(name: str):
+    p=pathr(name)
+    send2trash.send2trash(p)
+    return f"succes: deleted {name} (moved to trash for safety)"
+
+def guptime():
+    uptime=time.time()-psutil.boot_time()
+    return round(uptime,2)
+
