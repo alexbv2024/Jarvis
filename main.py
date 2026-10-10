@@ -7,9 +7,9 @@ from datetime import datetime
 import psutil
 import socket
 import platform
-
 import send2trash
-
+from playwright.sync_api import sync_playwright
+from bs4 import BeautifulSoup
 
 #Files and OS functions
 
@@ -210,7 +210,7 @@ def compress(dirname: str):
                 bdir = os.path.basename(i)
                 archive=os.path.join(pdir,bdir)
                 shutil.make_archive(archive,'zip',pdir,bdir)
-                return f"succes: compressed {dirname}"
+                return f"success: compressed {dirname}"
         return "error: compress not working"
     else:
         return "error: compress not working"
@@ -285,9 +285,37 @@ def whatos():
 def delthing(name: str):
     p=pathr(name)
     send2trash.send2trash(p)
-    return f"succes: deleted {name} (moved to trash for safety)"
+    return f"success: deleted {name} (moved to trash for safety)"
 
 def guptime():
     uptime=time.time()-psutil.boot_time()
     return round(uptime,2)
+
+#Web Scraping
+
+def pycoder(code: str):
+    try:
+        if("import " not  in code):
+            exec(code)
+            return f"success"
+        else:
+            return f"error: pycoder not working"
+    except Exception:
+        return f"error: pycoder not working"
+
+def scanweb(url:str):
+    try:
+        with sync_playwright() as p:
+            b=p.chromium.launch(headless=True)
+            page=b.new_page()
+            page.goto(url)
+            r=page.content()
+            b.close()
+            supa=BeautifulSoup(r,"html.parser")
+            for i in supa(["script", "style", "noscript", "svg"]):
+                i.decompose()
+            mrcleancode=supa.get_text(separator="\n", strip=True)
+            return mrcleancode
+    except Exception as e:
+        return e
 
