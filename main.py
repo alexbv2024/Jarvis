@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import time
@@ -10,6 +11,8 @@ import platform
 import send2trash
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
+import urllib.request
+import speedtest
 
 #Files and OS functions
 
@@ -316,6 +319,84 @@ def scanweb(url:str):
                 i.decompose()
             mrcleancode=supa.get_text(separator="\n", strip=True)
             return mrcleancode
+    except Exception as e:
+        return e
+
+def urljson(url:str):
+    headers = {
+        'User-Agent': (
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) '
+            'Chrome/120.0.0.0 Safari/537.36'
+        ),
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+    }
+    req=urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req,timeout=5) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except Exception as e:
+        return e
+
+def downloadurl(url:str,path:str):
+    try:
+        urllib.request.urlretrieve(url,path)
+        return f"success"
+    except Exception as e:
+        return e
+
+def getipaddy():
+    headers = {
+        'User-Agent': 'Mozilla/5.0'
+    }
+    req = urllib.request.Request('https://api.ipify.org', headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return r.read().decode("utf-8")
+    except Exception as e:
+        return e
+
+def getlocfromip(ip:str):
+    headers = {
+        'User-Agent': 'Mozilla/5.0'
+    }
+    req = urllib.request.Request(f'http://ip-api.com/json/{ip}', headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            d=json.loads(r.read().decode("utf-8"))
+            if(d.get("status")=="success"):
+                return {
+                    "city": d.get("city"),
+                    "lon": d.get("lon"),
+                    "lat": d.get("lat"),
+                    "region": d.get("regionName"),
+                    "country": d.get("country"),
+                    "isp": d.get("isp"),
+                }
+    except Exception as e:
+        return e
+
+def getlinks(url:str):
+    headers = {
+        'User-Agent': 'Mozilla/5.0'
+    }
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            d = BeautifulSoup(r.read().decode("utf-8"),'html.parser')
+            links=[]
+            for i in d.find_all('a',href=True):
+                if(not i['href'].startswith(( 'javascript:'))):
+                    links.append(i['href'])
+            return links
+    except Exception as e:
+        return e
+
+def speedtestinternet():
+    try:
+        s=speedtest.Speedtest()
+        s.get_best_server()
+        return [round(s.upload()/(1024*1024),2),round(s.download()/(1024*1024),2)]
     except Exception as e:
         return e
 
