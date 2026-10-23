@@ -13,7 +13,12 @@ from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 import urllib.request
 import speedtest
-
+import urllib.parse
+import webbrowser
+import trafilatura
+import pypdf
+import browser_cookie3
+import requests
 #Files and OS functions
 
 def pathr(name: str):
@@ -306,21 +311,74 @@ def pycoder(code: str):
     except Exception:
         return f"error: pycoder not working"
 
-def scanweb(url:str):
+def scanweb(url: str):
+    cj = None
+    browser_extractors = [
+        ('Brave', browser_cookie3.brave),
+        ('Chrome', browser_cookie3.chrome),
+        ('Opera', browser_cookie3.opera),
+        ('Safari', browser_cookie3.safari),
+        ('Edge', browser_cookie3.edge),
+    ]
+
+    for name, extract_fn in browser_extractors:
+        try:
+            cj = extract_fn(domain_name='.google.com')
+            if cj:
+                print(f'[Jarvis] S-au încărcat cookie-urile din: {name}')
+                break
+        except Exception:
+            continue
+
+    if not cj:
+        return 'error: Nu s-a putut găsi niciun browser cu sesiuni active.'
+
+    playwright_cookies = []
+    for c in cj:
+        domain = c.domain if c.domain else ''
+        playwright_cookies.append({
+            'name': c.name,
+            'value': c.value,
+            'domain': domain,
+            'path': c.path if c.path else '/',
+            'secure': bool(c.secure),
+            'expires': c.expires if c.expires else -1,
+        })
+
     try:
         with sync_playwright() as p:
-            b=p.chromium.launch(headless=True)
-            page=b.new_page()
-            page.goto(url)
-            r=page.content()
-            b.close()
-            supa=BeautifulSoup(r,"html.parser")
-            for i in supa(["script", "style", "noscript", "svg"]):
-                i.decompose()
-            mrcleancode=supa.get_text(separator="\n", strip=True)
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=(
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/120.0.0.0 Safari/537.36'
+                )
+            )
+
+            try:
+                context.add_cookies(playwright_cookies)
+            except Exception:
+                pass
+
+            page = context.new_page()
+
+            page.goto(url, wait_until='domcontentloaded', timeout=15000)
+
+            page.wait_for_timeout(3000)
+
+            content = page.content()
+            browser.close()
+
+            supa = BeautifulSoup(content, 'html.parser')
+            for tag in supa(['script', 'style', 'noscript', 'svg', 'head']):
+                tag.decompose()
+
+            mrcleancode = supa.get_text(separator='\n', strip=True)
             return mrcleancode
+
     except Exception as e:
-        return e
+        return f'error: {str(e)}'
 
 def urljson(url:str):
     headers = {
@@ -399,4 +457,86 @@ def speedtestinternet():
         return [round(s.upload()/(1024*1024),2),round(s.download()/(1024*1024),2)]
     except Exception as e:
         return e
+
+def googleit(query:str):
+    headers = {
+        'User-Agent': (
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) '
+            'Chrome/120.0.0.0 Safari/537.36'
+        ),
+        'Accept': (
+            'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        ),
+    }
+    encoded_query = urllib.parse.quote_plus(query)
+    url = f'https://html.duckduckgo.com/html/?q={encoded_query}'
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            d = BeautifulSoup(r.read().decode("utf-8"),'html.parser')
+            links=[]
+            for i in d.find_all('div',class_='result'):
+                if(i.find('a',class_='result__a') and i.find('a',class_='result__a')['href']):
+                    links.append({
+                        'title':i.find('a',class_='result__a').text.strip(),
+                        'url':i.find('a',class_='result__a')['href'],
+                        'snippet':i.find('a',class_='result__snippet').text.strip(),
+                    })
+            return links[:7]
+    except Exception as e:
+        return e
+
+def openurl(url:str):
+    if(url.startswith(('http://','https://'))):
+        try:
+            webbrowser.open(url)
+            return 'success'
+        except Exception as e:
+            return e
+    else:
+        try:
+            webbrowser.open(f"https://{url}")
+            return 'success'
+        except Exception as e:
+            return e
+
+def extracturl(url:str):
+    d=trafilatura.fetch_url(url)
+    try:
+        return trafilatura.extract(d,include_links=False,include_images=False,output_format="txt")
+    except Exception as e:
+        return e
+
+def getuser():
+    s=platform.system()
+    home=os.path.expanduser("~")
+    paths=[]
+    if(s=="Darwin"):
+        path=[
+            os.path.join(
+                home,
+                "Library/Application Support/BraveSoftware/Brave-Browser/Default",
+            ),
+            os.path.join(
+            home, "Library/Application Support/Google/Chrome/Default"
+        ),
+            os.path.join(
+                home, "Library/Application Support/com.operasoftware.Opera"
+            ),
+        ]
+    elif(s=="Linux"):
+        paths = [
+            os.path.join(home, ".config/BraveSoftware/Brave-Browser/Default"),
+            os.path.join(home, ".config/google-chrome/Default"),
+            os.path.join(home, ".config/opera"),
+            os.path.join(home, ".config/microsoft-edge/Default"),
+        ]
+
+    for path in paths:
+        if os.path.exists(path):
+            return path
+
+    return ""
+
 
