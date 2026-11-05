@@ -6,7 +6,6 @@ from pathlib import Path
 import shutil
 from datetime import datetime
 import psutil
-import socket
 import platform
 import send2trash
 from playwright.sync_api import sync_playwright
@@ -18,7 +17,8 @@ import webbrowser
 import trafilatura
 import pypdf
 import browser_cookie3
-import requests
+import socket
+import ssl
 #Files and OS functions
 
 def pathr(name: str):
@@ -396,13 +396,6 @@ def urljson(url:str):
     except Exception as e:
         return e
 
-def downloadurl(url:str,path:str):
-    try:
-        urllib.request.urlretrieve(url,path)
-        return f"success"
-    except Exception as e:
-        return e
-
 def getipaddy():
     headers = {
         'User-Agent': 'Mozilla/5.0'
@@ -435,20 +428,73 @@ def getlocfromip(ip:str):
         return e
 
 def getlinks(url:str):
-    headers = {
-        'User-Agent': 'Mozilla/5.0'
-    }
-    req = urllib.request.Request(url, headers=headers)
+    cj = None
+    browser_extractors = [
+        ('Brave', browser_cookie3.brave),
+        ('Chrome', browser_cookie3.chrome),
+        ('Opera', browser_cookie3.opera),
+        ('Safari', browser_cookie3.safari),
+        ('Edge', browser_cookie3.edge),
+    ]
+
+    for name, extract_fn in browser_extractors:
+        try:
+            cj = extract_fn(domain_name='.google.com')
+            if cj:
+                print(f'[Jarvis] S-au încărcat cookie-urile din: {name}')
+                break
+        except Exception:
+            continue
+
+    if not cj:
+        return 'error: Nu s-a putut găsi niciun browser cu sesiuni active.'
+
+    playwright_cookies = []
+    for c in cj:
+        domain = c.domain if c.domain else ''
+        playwright_cookies.append({
+            'name': c.name,
+            'value': c.value,
+            'domain': domain,
+            'path': c.path if c.path else '/',
+            'secure': bool(c.secure),
+            'expires': c.expires if c.expires else -1,
+        })
+
     try:
-        with urllib.request.urlopen(req, timeout=5) as r:
-            d = BeautifulSoup(r.read().decode("utf-8"),'html.parser')
-            links=[]
-            for i in d.find_all('a',href=True):
-                if(not i['href'].startswith(( 'javascript:'))):
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=(
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/120.0.0.0 Safari/537.36'
+                )
+            )
+
+            try:
+                context.add_cookies(playwright_cookies)
+            except Exception:
+                pass
+
+            page = context.new_page()
+
+            page.goto(url, wait_until='domcontentloaded', timeout=15000)
+
+            page.wait_for_timeout(3000)
+
+            content = page.content()
+            browser.close()
+
+            supa = BeautifulSoup(content, 'html.parser')
+            links = []
+            for i in supa.find_all('a', href=True):
+                if (not i['href'].startswith(('javascript:'))):
                     links.append(i['href'])
             return links
+
     except Exception as e:
-        return e
+        return f'error: {str(e)}'
 
 def speedtestinternet():
     try:
@@ -539,4 +585,52 @@ def getuser():
 
     return ""
 
+def pdfreader(path:str):
+    r=pypdf.PdfReader(path)
+    l=[]
+    for i,page in enumerate(r.pages):
+        text=page.extract_text()
+        l.append(text)
+    return l
+def downloadurl(url: str, path: str):
+    downloadpath=os.path.expanduser("~/Downloads")
+    file=os.path.join(downloadpath,path)
+    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'}
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=15) as response:
+            with open(file, 'wb') as f:
+                f.write(response.read())
+        return 'success'
+    except Exception as e:
+        return f'error: {e}'
+
+def imagescraper(url:str):
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=(
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/120.0.0.0 Safari/537.36'
+                )
+            )
+            page = context.new_page()
+
+            page.goto(url, wait_until='domcontentloaded', timeout=15000)
+
+            page.wait_for_timeout(3000)
+
+            content = page.content()
+            browser.close()
+
+            supa = BeautifulSoup(content, 'html.parser')
+            links = []
+            for i in supa.find_all('img'):
+                links.append(i["src"])
+            return links
+
+    except Exception as e:
+        return f'error: {str(e)}'
 
